@@ -280,7 +280,7 @@ namespace Session6
                                            orderby a.TotalCost descending
                                            select a.TotalCost).FirstOrDefault();
 
-                    //checker to check if there is another department with an equally costly asset
+                    //checker to check if there is another department with an equally costly asset. THis part was also influenced by Mr Jeffery
                     var costlyassetsbymonth = string.Join("," ,(from a in monthlyReportOfCostlyAssets
                                                        where a.TotalCost == highestCostbyMonth
                                                        select a.partName));
