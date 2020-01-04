@@ -120,8 +120,6 @@ namespace Session6
                 //to get list of months to fill columns for completed emergency maintainences and their expenditures
                 var dateList = all_orderexpenditures_by_depts1.OrderByDescending(a => a.date).Select(a => a.date).Distinct();
 
-
-
                 emDepartmentExpendituredgv.Rows.Clear();
 
                 foreach (var emDate in dateList)
