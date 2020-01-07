@@ -153,29 +153,41 @@ namespace Session6
                 {
                     foreach(var item in availableParts)
                     {
-                        if(item.Amount < requiredAmt)
+                        if((currentAmt <requiredAmt) && (item.Amount < requiredAmt))
                         {
                             allocatedParts.Add(item);
-                            currentAmt = item.Amount;
+                            currentAmt += item.Amount;
+                        }
+                        else if((currentAmt < requiredAmt) &&  item.Amount == requiredAmt)
+                        {
+                            allocatedParts.Add(item);
+                            currentAmt += item.Amount;
                             break;
                         }
-                        else if(item.Amount == requiredAmt)
+                        else if((currentAmt < requiredAmt) && item.Amount > requiredAmt)
                         {
+                            item.Amount -= (item.Amount - (requiredAmt - currentAmt));
+                            currentAmt += item.Amount;
                             allocatedParts.Add(item);
-                            currentAmt = item.Amount;
+                        }
+                        else
+                        {
                             break;
                         }
                     }
                 }
+                AllocatedPartsDGV.Rows.Clear();
                 foreach(var item in allocatedParts)
                 {
-                    object[] row = new object[5];
-                    row[0] = item.PartName;
-                    row[1] = item.BatchNumber;
-                    row[2] = item.UnitPrice;
-                    row[3] = item.Amount;
-                    row[4] = item.PartID;
-                    AllocatedPartsDGV.Rows.Add(row);
+                    List<object> row = new List<object>()
+                    {
+                        item.PartName,
+                        item.BatchNumber,
+                        item.UnitPrice,
+                        item.Amount,
+                        item.PartID
+                    };
+                    AllocatedPartsDGV.Rows.Add(row.ToArray());
                 }
 
             }
