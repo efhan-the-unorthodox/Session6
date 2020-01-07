@@ -1,11 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Session6
@@ -38,6 +35,8 @@ namespace Session6
             generateDepartmentSpending();
             generatePartsAggregation();
             generateCostlyAssetsReport();
+            generateDepartmentSpendingRatio();
+            generateMonthlyDepartmentSpendingGraph();
         }
 
         //This method of cell formatting i also took some influence from your code but instead of using ondatabindingcomplete event i decided to use the cellformatting which i was already aware of and 
@@ -169,8 +168,15 @@ namespace Session6
                 //generate the columns for the dates of the months containing all the completed emergency maintanence orders
                 var dateColumns = order_expenditures.Select(o => o.orderDate).Distinct();
 
-                partsAggregateDgv.Columns.Clear();
                 partsAggregateDgv.Rows.Clear();
+                partsAggregateDgv.Columns.Clear();
+                var firstColumn = new DataGridViewTextBoxColumn()
+                {
+                    DataPropertyName = "HiLo",
+                    HeaderText = $@"Notes\Month"
+                };
+                partsAggregateDgv.Columns.Add(firstColumn);
+
                 foreach (var date in dateColumns)
                 {
                     var dateColumn = new DataGridViewTextBoxColumn()
@@ -225,7 +231,7 @@ namespace Session6
         }
         private void generateCostlyAssetsReport()
         {
-            using(Session6Entities db = new Session6Entities())
+            using (Session6Entities db = new Session6Entities())
             {
                 //getting all order items associated with their respective maintainence order that has already been completed
                 var orderItems_withCompletedEMRs = db.OrderItems.Where(a => a.Order.EmergencyMaintenance.EMStartDate != null & a.Order.EmergencyMaintenance.EMEndDate != null).ToList();
@@ -247,9 +253,17 @@ namespace Session6
 
                 var dateColumns = orderItems_withCompletedEMRs2.Select(a => a.orderDate).Distinct();
 
-                mostCostlyAssetsDgv.Columns.Clear();
                 mostCostlyAssetsDgv.Rows.Clear();
-                foreach(var date in dateColumns)
+                mostCostlyAssetsDgv.Columns.Clear();
+                var firstColumn = new DataGridViewTextBoxColumn()
+                {
+                    DataPropertyName = "CostlyAssets",
+                    HeaderText = $@"Asset Name\Month"
+                };
+                mostCostlyAssetsDgv.Columns.Add(firstColumn);
+
+
+                foreach (var date in dateColumns)
                 {
                     mostCostlyAssetsDgv.Columns.Add(new DataGridViewTextBoxColumn()
                     {
@@ -265,23 +279,20 @@ namespace Session6
                                                        b.Key.orderDate,
                                                        b.Key.deptName,
                                                        b.Key.partName,
-                                                       TotalCost = b.Sum( a=> a.partTotalCost)
+                                                       TotalCost = b.Sum(a => a.partTotalCost)
                                                    });
-                foreach(var item in monthlyReportOfCostlyAssets)
-                {
-                    Console.WriteLine(item);
-                }
-                foreach(var date in dateColumns)
+
+                foreach (var date in dateColumns)
                 {
                     var highestCostbyMonth = (from a in monthlyReportOfCostlyAssets
-                                           where a.orderDate == date
-                                           orderby a.TotalCost descending
-                                           select a.TotalCost).FirstOrDefault();
+                                              where a.orderDate == date
+                                              orderby a.TotalCost descending
+                                              select a.TotalCost).FirstOrDefault();
 
                     //checker to check if there is another department with an equally costly asset. THis part was also influenced by Mr Jeffery
-                    var costlyassetsbymonth = string.Join("," ,(from a in monthlyReportOfCostlyAssets
-                                                       where a.TotalCost == highestCostbyMonth
-                                                       select a.partName));
+                    var costlyassetsbymonth = string.Join(",", (from a in monthlyReportOfCostlyAssets
+                                                                where a.TotalCost == highestCostbyMonth
+                                                                select a.partName));
                     var departmentAssociatedwithCostlyAsset = string.Join(",", (from a in monthlyReportOfCostlyAssets
                                                                                 where a.TotalCost == highestCostbyMonth
                                                                                 select a.deptName));
@@ -291,6 +302,88 @@ namespace Session6
                 mostCostlyAssetsDgv.Rows.Add(listmostcostlyAssetsbymonth.ToArray());
                 mostCostlyAssetsDgv.Rows.Add(listcostlyassetAssociatedDepartments.ToArray());
             }
+        }
+        private void generateDepartmentSpendingRatio()
+        {
+            //getting all orderitems and categorising them by their departments
+            using (Session6Entities db = new Session6Entities())
+            {
+                var allOrderItemsExpenditure = db.OrderItems.Where(a => a.Order.EmergencyMaintenance.EMEndDate != null && a.Order.EmergencyMaintenance.EMStartDate != null).ToList();
+
+                var orderItemsExpwithDept = (from a in allOrderItemsExpenditure
+                                             group a by a.Order.EmergencyMaintenance.Asset.DepartmentLocation.Department.Name into b
+                                             select new
+                                             {
+                                                 deptName = b.Key,
+                                                 TotalExpenditure = b.Sum(a => a.Amount * a.UnitPrice).Value
+                                             }).ToList();
+                deptSpendingRatioPie.Series[0].Points.Clear();
+                foreach (var item in orderItemsExpwithDept)
+                {
+                    var portion = deptSpendingRatioPie.Series[0].Points.AddY(item.TotalExpenditure);
+                    deptSpendingRatioPie.Series[0].Points[portion].LegendText = item.deptName;
+                    deptSpendingRatioPie.Series[0].Points[portion].Label = " ";
+                }
+            }
+        }
+        private void generateMonthlyDepartmentSpendingGraph()
+        {
+            using (Session6Entities db = new Session6Entities())
+            {
+                var getAllOrderItems1 = (from a in db.OrderItems
+                                         orderby a.Order.Date descending
+                                         where a.Order.EmergencyMaintenance.EMEndDate != null && a.Order.EmergencyMaintenance.EMStartDate != null
+                                         select new
+                                         {
+                                             DepartmentName = a.Order.EmergencyMaintenance.Asset.DepartmentLocation.Department.Name,
+                                             OrderDate = a.Order.Date,
+                                             TotalCostOfOrderItem = a.Amount * a.UnitPrice
+                                         }).ToList();
+                var getAllOrderItems = (from a in getAllOrderItems1
+                                        select new
+                                        {
+                                            a.DepartmentName,
+                                            OrderDate = a.OrderDate.ToString("yyyy-MM"),
+                                            a.TotalCostOfOrderItem,
+                                        }).ToList();
+
+                var departmentExpenditurebymonth = (from a in getAllOrderItems
+                                                    group a by new { a.DepartmentName, a.OrderDate } into b
+                                                    select new
+                                                    {
+                                                        b.Key.DepartmentName,
+                                                        b.Key.OrderDate,
+                                                        TotalDeptExp = b.Sum(a => a.TotalCostOfOrderItem)
+                                                    }
+                    );
+                monthlyDeptSpendingGraph.Series.Clear();
+                foreach (var deptName in departmentExpenditurebymonth.Select(p => p.DepartmentName).Distinct())
+                {
+                    monthlyDeptSpendingGraph.Series.Add(new System.Windows.Forms.DataVisualization.Charting.Series(deptName) { });
+                }
+                var curDate = " ";
+                var dateIdx = 0;
+                foreach(var r in departmentExpenditurebymonth)
+                {
+                    if(curDate != r.OrderDate)
+                    {
+                        curDate = r.OrderDate;
+                        dateIdx++;
+                    }
+                    var idx = monthlyDeptSpendingGraph.Series[r.DepartmentName].Points.AddXY(dateIdx, r.TotalDeptExp);
+                    monthlyDeptSpendingGraph.Series[r.DepartmentName].Points[idx].AxisLabel = r.OrderDate;
+                    monthlyDeptSpendingGraph.Series[r.DepartmentName].Points[idx].Label = r.TotalDeptExp.Value.ToString("#,##0");
+                }
+
+
+
+            }
+        }
+
+        private void InventoryControlBtn_Click(object sender, EventArgs e)
+        {
+            InventoryControl inventoryControl = new InventoryControl();
+            inventoryControl.ShowDialog();
         }
     }
 }
